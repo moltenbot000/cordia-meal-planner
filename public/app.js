@@ -1,162 +1,577 @@
-const storageKey = "cordia-template-state";
+const storageKey = "meal-planner-state-v1";
 
-const defaultState = {
-  appName: "Cordia",
-  theme: "system",
-  items: [
-    { id: crypto.randomUUID(), text: "Replace starter content", done: false },
-    { id: crypto.randomUUID(), text: "Add app-specific data model", done: false },
-    { id: crypto.randomUUID(), text: "Deploy public folder to Cloudflare Pages", done: true },
-  ],
+const dailyGoal = {
+  calories: 2500,
+  carbohydrates: 125,
+  protein: 250,
+  fat: 111,
+  fiber: 38,
+};
+
+const meals = ["I", "II", "III", "IV"];
+
+const defaultFoods = [
+  {
+    id: "chicken-shawarma-wrap",
+    name: "Chicken Shawarma Wrap",
+    servingSize: "1 wrap",
+    source: "Provided food item",
+    nutrition: {
+      calories: 720,
+      protein: 45,
+      carbohydrates: 58,
+      fat: 34,
+      fiber: 5,
+      sugar: 4,
+    },
+  },
+  {
+    id: "greek-yogurt-berries",
+    name: "Greek Yogurt with Berries",
+    servingSize: "1 bowl",
+    source: "Starter item",
+    nutrition: {
+      calories: 260,
+      protein: 24,
+      carbohydrates: 28,
+      fat: 5,
+      fiber: 4,
+      sugar: 18,
+    },
+  },
+  {
+    id: "salmon-rice-bowl",
+    name: "Salmon Rice Bowl",
+    servingSize: "1 bowl",
+    source: "Starter item",
+    nutrition: {
+      calories: 640,
+      protein: 42,
+      carbohydrates: 62,
+      fat: 24,
+      fiber: 6,
+      sugar: 8,
+    },
+  },
+];
+
+const goalNotes = {
+  cutting: "Prioritize high protein, fiber, and a controlled calorie deficit.",
+  bulking: "Plan calorie surplus meals with steady protein and carb support.",
+  dirtyBulking: "Higher-calorie planning with fewer food restrictions.",
+  reverseDieting: "Increase calories gradually while keeping protein stable.",
+  intermittentFasting: "Cluster meals inside a shorter eating window with bigger servings.",
 };
 
 const elements = {
-  appNameInput: document.querySelector("#app-name"),
-  clearItemsButton: document.querySelector("#clear-items"),
-  itemCount: document.querySelector("#item-count"),
-  itemForm: document.querySelector("#item-form"),
-  itemInput: document.querySelector("#item-input"),
-  itemList: document.querySelector("#item-list"),
-  navLinks: document.querySelectorAll(".nav a"),
-  saveState: document.querySelector("#save-state"),
-  themeSelect: document.querySelector("#theme-select"),
-  title: document.querySelector(".topbar h1"),
+  clearDay: document.querySelector("#clear-day"),
+  currentDate: document.querySelector("#current-date"),
+  datePicker: document.querySelector("#date-picker"),
+  dropZone: document.querySelector("#drop-zone"),
+  foodSearch: document.querySelector("#food-search"),
+  goalNote: document.querySelector("#goal-note"),
+  goalSelect: document.querySelector("#goal-select"),
+  mealList: document.querySelector("#meal-list"),
+  nextDay: document.querySelector("#next-day"),
+  photoInput: document.querySelector("#photo-input"),
+  photoResult: document.querySelector("#photo-result"),
+  previousDay: document.querySelector("#previous-day"),
+  searchResults: document.querySelector("#search-results"),
+  totals: {
+    calories: document.querySelector("#total-calories"),
+    carbohydrates: document.querySelector("#total-carbs"),
+    protein: document.querySelector("#total-protein"),
+    fat: document.querySelector("#total-fat"),
+    fiber: document.querySelector("#total-fiber"),
+  },
+  remaining: {
+    calories: document.querySelector("#remaining-calories"),
+    carbohydrates: document.querySelector("#remaining-carbs"),
+    protein: document.querySelector("#remaining-protein"),
+    fat: document.querySelector("#remaining-fat"),
+    fiber: document.querySelector("#remaining-fiber"),
+  },
 };
 
 let state = loadState();
-let saveTimer;
 
 function loadState() {
+  const today = formatDateKey(new Date());
   try {
     const storedState = JSON.parse(localStorage.getItem(storageKey));
-    return { ...defaultState, ...storedState };
+    return normalizeState({
+      selectedDate: today,
+      goal: "cutting",
+      foods: defaultFoods,
+      diary: {},
+      ...storedState,
+    });
   } catch {
-    return defaultState;
+    return normalizeState({
+      selectedDate: today,
+      goal: "cutting",
+      foods: defaultFoods,
+      diary: {},
+    });
   }
+}
+
+function normalizeState(nextState) {
+  const mergedFoods = [...defaultFoods];
+  (nextState.foods || []).forEach((food) => {
+    if (!mergedFoods.some((defaultFood) => defaultFood.id === food.id)) {
+      mergedFoods.push(food);
+    }
+  });
+
+  return {
+    ...nextState,
+    foods: mergedFoods,
+    diary: nextState.diary || {},
+  };
 }
 
 function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
-  elements.saveState.textContent = "Saved locally";
-  window.clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => {
-    elements.saveState.textContent = "Changes autosave";
-  }, 1600);
 }
 
-function applyTheme() {
-  document.documentElement.dataset.theme = state.theme;
+function formatDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatDisplayDate(dateKey) {
+  return parseDateKey(dateKey).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function shiftDate(days) {
+  const nextDate = parseDateKey(state.selectedDate);
+  nextDate.setDate(nextDate.getDate() + days);
+  state = { ...state, selectedDate: formatDateKey(nextDate) };
+  saveState();
+  render();
+}
+
+function getDayMeals() {
+  return state.diary[state.selectedDate] || {};
+}
+
+function getMealItems(meal) {
+  return getDayMeals()[meal] || [];
+}
+
+function setMealItems(meal, items) {
+  state = {
+    ...state,
+    diary: {
+      ...state.diary,
+      [state.selectedDate]: {
+        ...getDayMeals(),
+        [meal]: items,
+      },
+    },
+  };
+  saveState();
+  render();
+}
+
+function addFoodToMeal(foodId, meal) {
+  const food = state.foods.find((item) => item.id === foodId);
+  if (!food) return;
+
+  const entry = {
+    id: crypto.randomUUID(),
+    foodId,
+    name: food.name,
+    servingSize: food.servingSize,
+    nutrition: food.nutrition,
+  };
+
+  setMealItems(meal, [...getMealItems(meal), entry]);
+}
+
+function removeMealEntry(meal, entryId) {
+  setMealItems(
+    meal,
+    getMealItems(meal).filter((item) => item.id !== entryId),
+  );
+}
+
+function addFood(food) {
+  const existing = state.foods.find((item) => item.id === food.id);
+  state = {
+    ...state,
+    foods: existing
+      ? state.foods.map((item) => (item.id === food.id ? food : item))
+      : [food, ...state.foods],
+  };
+  saveState();
+  renderSearchResults();
+}
+
+function getNutritionTotals() {
+  return meals.reduce(
+    (totals, meal) => {
+      getMealItems(meal).forEach((entry) => {
+        totals.calories += entry.nutrition.calories;
+        totals.carbohydrates += entry.nutrition.carbohydrates;
+        totals.protein += entry.nutrition.protein;
+        totals.fat += entry.nutrition.fat;
+        totals.fiber += entry.nutrition.fiber;
+      });
+      return totals;
+    },
+    { calories: 0, carbohydrates: 0, protein: 0, fat: 0, fiber: 0 },
+  );
+}
+
+function formatNumber(value) {
+  return Math.round(value).toLocaleString("en-US");
 }
 
 function render() {
-  document.title = `${state.appName} App Template`;
-  elements.title.textContent = state.appName;
-  elements.appNameInput.value = state.appName;
-  elements.themeSelect.value = state.theme;
-  elements.itemCount.textContent = state.items.length;
-  applyTheme();
-  renderItems();
+  elements.currentDate.textContent = formatDisplayDate(state.selectedDate);
+  elements.datePicker.value = state.selectedDate;
+  elements.goalSelect.value = state.goal;
+  elements.goalNote.textContent = goalNotes[state.goal];
+
+  renderMeals();
+  renderTotals();
+  renderSearchResults();
 }
 
-function renderItems() {
-  elements.itemList.replaceChildren();
+function renderMeals() {
+  elements.mealList.replaceChildren();
 
-  if (state.items.length === 0) {
-    const emptyState = document.createElement("p");
-    emptyState.className = "empty-state";
-    emptyState.textContent = "No items yet. Add one to start shaping this template.";
-    elements.itemList.append(emptyState);
+  meals.forEach((meal) => {
+    const mealSection = document.createElement("section");
+    mealSection.className = "meal-section";
+    mealSection.setAttribute("aria-labelledby", `meal-${meal}`);
+
+    const title = document.createElement("h3");
+    title.id = `meal-${meal}`;
+    title.textContent = meal;
+
+    const entries = document.createElement("div");
+    entries.className = "meal-entries";
+
+    const mealItems = getMealItems(meal);
+    if (mealItems.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "meal-empty";
+      empty.textContent = "No food logged.";
+      entries.append(empty);
+    } else {
+      mealItems.forEach((entry) => {
+        entries.append(createMealEntry(entry, meal));
+      });
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "meal-actions";
+
+    const addLink = document.createElement("button");
+    addLink.type = "button";
+    addLink.textContent = "Add Food";
+    addLink.addEventListener("click", () => {
+      elements.foodSearch.focus();
+      elements.foodSearch.dataset.targetMeal = meal;
+    });
+
+    const quickTools = document.createElement("button");
+    quickTools.type = "button";
+    quickTools.textContent = "Quick Tools";
+    quickTools.addEventListener("click", () => addFoodToMeal("chicken-shawarma-wrap", meal));
+
+    actions.append(addLink, quickTools);
+    mealSection.append(title, entries, actions);
+    elements.mealList.append(mealSection);
+  });
+}
+
+function createMealEntry(entry, meal) {
+  const row = document.createElement("div");
+  row.className = "food-row";
+
+  const details = document.createElement("div");
+  details.className = "food-details";
+
+  const name = document.createElement("strong");
+  name.textContent = entry.name;
+
+  const serving = document.createElement("small");
+  serving.textContent = entry.servingSize;
+
+  details.append(name, serving);
+
+  const values = [
+    entry.nutrition.calories,
+    entry.nutrition.carbohydrates,
+    entry.nutrition.protein,
+    entry.nutrition.fat,
+    entry.nutrition.fiber,
+  ].map((value) => {
+    const cell = document.createElement("span");
+    cell.textContent = formatNumber(value);
+    return cell;
+  });
+
+  const removeButton = document.createElement("button");
+  removeButton.className = "remove-entry";
+  removeButton.type = "button";
+  removeButton.textContent = "Remove";
+  removeButton.addEventListener("click", () => removeMealEntry(meal, entry.id));
+
+  row.append(details, ...values, removeButton);
+  return row;
+}
+
+function renderTotals() {
+  const totals = getNutritionTotals();
+  Object.entries(elements.totals).forEach(([key, element]) => {
+    element.textContent = formatNumber(totals[key]);
+  });
+  Object.entries(elements.remaining).forEach(([key, element]) => {
+    element.textContent = formatNumber(dailyGoal[key] - totals[key]);
+  });
+}
+
+function renderSearchResults() {
+  const query = elements.foodSearch.value.trim().toLowerCase();
+  const matches = state.foods
+    .filter((food) => !query || food.name.toLowerCase().includes(query))
+    .slice(0, 8);
+
+  elements.searchResults.replaceChildren();
+
+  if (matches.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No foods found.";
+    elements.searchResults.append(empty);
     return;
   }
 
-  state.items.forEach((item) => {
-    const row = document.createElement("li");
-    row.className = "item-row";
-    row.dataset.done = item.done;
+  matches.forEach((food) => {
+    const item = document.createElement("article");
+    item.className = "result-card";
 
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = item.done;
-    checkbox.ariaLabel = `Mark ${item.text} complete`;
-    checkbox.addEventListener("change", () => updateItem(item.id, { done: checkbox.checked }));
+    const summary = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = food.name;
+    const meta = document.createElement("small");
+    meta.textContent = `${food.servingSize} | ${food.nutrition.calories} kcal | P ${food.nutrition.protein}g C ${food.nutrition.carbohydrates}g F ${food.nutrition.fat}g`;
+    summary.append(name, meta);
 
-    const label = document.createElement("span");
-    label.textContent = item.text;
+    const controls = document.createElement("div");
+    controls.className = "add-buttons";
+    meals.forEach((meal) => {
+      const button = document.createElement("button");
+      button.className = meal === elements.foodSearch.dataset.targetMeal ? "selected" : "";
+      button.type = "button";
+      button.textContent = meal;
+      button.ariaLabel = `Add ${food.name} to meal ${meal}`;
+      button.addEventListener("click", () => addFoodToMeal(food.id, meal));
+      controls.append(button);
+    });
 
-    const removeButton = document.createElement("button");
-    removeButton.className = "icon-button";
-    removeButton.type = "button";
-    removeButton.ariaLabel = `Remove ${item.text}`;
-    removeButton.textContent = "x";
-    removeButton.addEventListener("click", () => removeItem(item.id));
-
-    row.append(checkbox, label, removeButton);
-    elements.itemList.append(row);
+    item.append(summary, controls);
+    elements.searchResults.append(item);
   });
 }
 
-function updateItem(id, patch) {
-  state = {
-    ...state,
-    items: state.items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+function estimateFoodFromImage(file, imageMetrics = {}) {
+  const lowerName = file.name.toLowerCase();
+  const imageHints = [
+    {
+      terms: ["wrap", "shawarma", "gyro", "burrito"],
+      food: {
+        name: "Photo Estimate: Chicken Shawarma Wrap",
+        servingSize: "1 wrap",
+        nutrition: { calories: 720, protein: 45, carbohydrates: 58, fat: 34, fiber: 5, sugar: 4 },
+      },
+    },
+    {
+      terms: ["salad", "greens"],
+      food: {
+        name: "Photo Estimate: Protein Salad",
+        servingSize: "1 plate",
+        nutrition: { calories: 430, protein: 32, carbohydrates: 26, fat: 22, fiber: 8, sugar: 7 },
+      },
+    },
+    {
+      terms: ["pizza"],
+      food: {
+        name: "Photo Estimate: Pizza Slices",
+        servingSize: "2 slices",
+        nutrition: { calories: 620, protein: 28, carbohydrates: 70, fat: 24, fiber: 4, sugar: 8 },
+      },
+    },
+    {
+      terms: ["rice", "bowl"],
+      food: {
+        name: "Photo Estimate: Rice Bowl",
+        servingSize: "1 bowl",
+        nutrition: { calories: 680, protein: 38, carbohydrates: 78, fat: 22, fiber: 7, sugar: 9 },
+      },
+    },
+  ];
+
+  const match = imageHints.find((hint) => hint.terms.some((term) => lowerName.includes(term)));
+  const visualMatch =
+    !match &&
+    (imageMetrics.greenRatio > 0.2
+      ? imageHints[1]
+      : imageMetrics.warmRatio > 0.33 && imageMetrics.redRatio > 0.12
+        ? imageHints[2]
+        : imageMetrics.warmRatio > 0.24
+          ? imageHints[0]
+          : null);
+  const fallback = {
+    name: "Photo Estimate: Mixed Meal Plate",
+    servingSize: "1 plate",
+    nutrition: { calories: 650, protein: 35, carbohydrates: 58, fat: 28, fiber: 6, sugar: 8 },
   };
-  saveState();
-  render();
+
+  const estimate = match ? match.food : visualMatch ? visualMatch.food : fallback;
+  return {
+    id: `photo-${slugify(estimate.name)}-${Date.now()}`,
+    source: "Photo estimate",
+    ...estimate,
+  };
 }
 
-function removeItem(id) {
-  state = {
-    ...state,
-    items: state.items.filter((item) => item.id !== id),
-  };
-  saveState();
-  render();
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
-function addItem(text) {
-  state = {
-    ...state,
-    items: [{ id: crypto.randomUUID(), text, done: false }, ...state.items],
+function analyzeImagePixels(image) {
+  const canvas = document.createElement("canvas");
+  const size = 64;
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0, size, size);
+  const pixels = context.getImageData(0, 0, size, size).data;
+  let green = 0;
+  let warm = 0;
+  let red = 0;
+  let visible = 0;
+
+  for (let index = 0; index < pixels.length; index += 4) {
+    const r = pixels[index];
+    const g = pixels[index + 1];
+    const b = pixels[index + 2];
+    const alpha = pixels[index + 3];
+    if (alpha < 20) continue;
+    visible += 1;
+    if (g > r * 1.08 && g > b * 1.12) green += 1;
+    if (r > 115 && g > 70 && b < 120) warm += 1;
+    if (r > g * 1.18 && r > b * 1.18) red += 1;
+  }
+
+  return {
+    greenRatio: green / visible,
+    warmRatio: warm / visible,
+    redRatio: red / visible,
   };
-  saveState();
-  render();
 }
 
-elements.itemForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const text = elements.itemInput.value.trim();
-  if (!text) return;
-  addItem(text);
-  elements.itemInput.value = "";
-  elements.itemInput.focus();
-});
+function handlePhoto(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const previewUrl = URL.createObjectURL(file);
+  const image = document.createElement("img");
+  image.src = previewUrl;
+  image.alt = "";
+  image.addEventListener(
+    "load",
+    () => {
+      const food = estimateFoodFromImage(file, analyzeImagePixels(image));
+      addFood(food);
+      URL.revokeObjectURL(previewUrl);
 
-elements.clearItemsButton.addEventListener("click", () => {
-  state = { ...state, items: state.items.filter((item) => !item.done) };
+      elements.photoResult.hidden = false;
+      elements.photoResult.replaceChildren();
+
+      const summary = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = food.name;
+      const macros = document.createElement("small");
+      macros.textContent = `${food.nutrition.calories} kcal | P ${food.nutrition.protein}g C ${food.nutrition.carbohydrates}g F ${food.nutrition.fat}g`;
+      const note = document.createElement("p");
+      note.textContent = "Added to searchable foods.";
+      summary.append(title, macros, note);
+
+      elements.photoResult.append(image, summary);
+    },
+    { once: true },
+  );
+}
+
+elements.previousDay.addEventListener("click", () => shiftDate(-1));
+elements.nextDay.addEventListener("click", () => shiftDate(1));
+
+elements.datePicker.addEventListener("change", () => {
+  state = { ...state, selectedDate: elements.datePicker.value || state.selectedDate };
   saveState();
   render();
 });
 
-elements.appNameInput.addEventListener("input", () => {
-  state = { ...state, appName: elements.appNameInput.value.trim() || "Cordia" };
+elements.clearDay.addEventListener("click", () => {
+  const { [state.selectedDate]: removed, ...remainingDiary } = state.diary;
+  state = { ...state, diary: remainingDiary };
   saveState();
   render();
 });
 
-elements.themeSelect.addEventListener("change", () => {
-  state = { ...state, theme: elements.themeSelect.value };
+elements.foodSearch.addEventListener("input", renderSearchResults);
+
+elements.goalSelect.addEventListener("change", () => {
+  state = { ...state, goal: elements.goalSelect.value };
   saveState();
   render();
 });
 
-window.addEventListener("hashchange", updateCurrentNavLink);
+elements.dropZone.addEventListener("click", () => elements.photoInput.click());
+elements.dropZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    elements.photoInput.click();
+  }
+});
+elements.photoInput.addEventListener("change", () => handlePhoto(elements.photoInput.files[0]));
 
-function updateCurrentNavLink() {
-  const currentHash = window.location.hash || "#overview";
-  elements.navLinks.forEach((link) => {
-    link.setAttribute("aria-current", link.getAttribute("href") === currentHash ? "page" : "false");
+["dragenter", "dragover"].forEach((eventName) => {
+  elements.dropZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    elements.dropZone.dataset.dragging = "true";
   });
-}
+});
+
+["dragleave", "drop"].forEach((eventName) => {
+  elements.dropZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    elements.dropZone.dataset.dragging = "false";
+  });
+});
+
+elements.dropZone.addEventListener("drop", (event) => {
+  handlePhoto(event.dataTransfer.files[0]);
+});
 
 render();
-updateCurrentNavLink();
