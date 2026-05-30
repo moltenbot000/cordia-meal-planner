@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light dark">
+    <meta name="color-scheme" content="light">
     <meta
       name="description"
-      content="A small browser-only web application template ready for Cloudflare Pages."
+      content="Meal planner with per-date food diary, macro totals, search, and photo-based meal estimates."
     >
-    <title>Cordia App Template</title>
+    <title>Meal Planner</title>
     <link rel="author" href="/humans.txt" type="text/plain">
     <link rel="alternate" href="/llm.txt" type="text/plain" title="LLM-readable site information">
     <link rel="stylesheet" href="/global.css">
@@ -17,128 +17,121 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
 
-    <div class="app-shell">
-      <header class="topbar">
+    <main class="app-shell" id="main">
+      <header class="diary-header">
         <div>
-          <p class="eyebrow">Browser app template</p>
-          <h1>Cordia</h1>
+          <p class="eyebrow">Meal Planner</p>
+          <h1>Your Food Diary For:</h1>
         </div>
-        <nav class="nav" aria-label="Primary">
-          <a href="#overview" aria-current="page">Overview</a>
-          <a href="#workspace">Workspace</a>
-          <a href="#settings">Settings</a>
-        </nav>
+
+        <div class="date-controls" aria-label="Diary date controls">
+          <button class="date-arrow" id="previous-day" type="button" aria-label="Previous day">
+            <span aria-hidden="true">&#9664;</span>
+          </button>
+          <strong id="current-date">Saturday, May 30, 2026</strong>
+          <button class="date-arrow" id="next-day" type="button" aria-label="Next day">
+            <span aria-hidden="true">&#9654;</span>
+          </button>
+          <label class="calendar-button" for="date-picker" aria-label="Select date">
+            <span aria-hidden="true">&#128197;</span>
+          </label>
+          <input id="date-picker" type="date" aria-label="Calendar Date Selector">
+        </div>
       </header>
 
-      <main id="main">
-        <section class="hero" id="overview" aria-labelledby="hero-title">
-          <div class="hero-copy">
-            <p class="eyebrow">Cloudflare-ready static starter</p>
-            <h2 id="hero-title">A clean starting point for browser-only apps.</h2>
-            <p>
-              Customize the data model, views, and actions without introducing a
-              build pipeline. State is local by default, markup stays plain, and
-              assets live in one deployable folder.
-            </p>
-            <div class="hero-actions">
-              <a class="button primary" href="#workspace">Open workspace</a>
-              <a class="button secondary" href="#settings">Edit settings</a>
-            </div>
-          </div>
-          <div class="status-panel" aria-label="Application status">
+      <section class="planner-layout" aria-label="Food diary workspace">
+        <section class="diary-card" aria-labelledby="diary-title">
+          <div class="diary-toolbar">
             <div>
-              <span class="status-dot" aria-hidden="true"></span>
-              <span>Ready for customization</span>
+              <p class="eyebrow">Daily log</p>
+              <h2 id="diary-title">Meals I-IV</h2>
             </div>
-            <strong id="item-count">0</strong>
-            <span>saved items</span>
+            <button class="button secondary" id="clear-day" type="button">Clear day</button>
           </div>
+
+          <div class="nutrient-head" aria-hidden="true">
+            <span></span>
+            <span>Calories <small>kcal</small></span>
+            <span>Carbs <small>g</small></span>
+            <span>Protein <small>g</small></span>
+            <span>Fat <small>g</small></span>
+            <span>Fiber <small>g</small></span>
+          </div>
+
+          <div class="meal-list" id="meal-list"></div>
+
+          <section class="totals" aria-label="Daily nutrition totals">
+            <div class="total-row">
+              <strong>Totals</strong>
+              <span id="total-calories">0</span>
+              <span id="total-carbs">0</span>
+              <span id="total-protein">0</span>
+              <span id="total-fat">0</span>
+              <span id="total-fiber">0</span>
+            </div>
+            <div class="total-row">
+              <strong>Your Daily Goal</strong>
+              <span>2,500</span>
+              <span>125</span>
+              <span>250</span>
+              <span>111</span>
+              <span>38</span>
+            </div>
+            <div class="total-row remaining">
+              <strong>Remaining</strong>
+              <span id="remaining-calories">2,500</span>
+              <span id="remaining-carbs">125</span>
+              <span id="remaining-protein">250</span>
+              <span id="remaining-fat">111</span>
+              <span id="remaining-fiber">38</span>
+            </div>
+          </section>
         </section>
 
-        <section class="section-grid" id="workspace" aria-labelledby="workspace-title">
-          <div class="panel workspace-panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Workspace</p>
-                <h2 id="workspace-title">Starter list</h2>
-              </div>
-              <button class="button secondary" id="clear-items" type="button">Clear done</button>
-            </div>
-
-            <form class="item-form" id="item-form">
-              <label for="item-input">New item</label>
-              <div class="input-row">
-                <input
-                  id="item-input"
-                  name="item"
-                  type="text"
-                  autocomplete="off"
-                  maxlength="80"
-                  placeholder="Add a task, note, or placeholder record"
-                  required
-                >
-                <button class="button primary" type="submit">Add</button>
-              </div>
-            </form>
-
-            <ul class="item-list" id="item-list" aria-live="polite"></ul>
-          </div>
-
-          <aside class="panel" aria-labelledby="snapshot-title">
-            <p class="eyebrow">Snapshot</p>
-            <h2 id="snapshot-title">Template pieces</h2>
-            <dl class="stat-list">
-              <div>
-                <dt>Runtime</dt>
-                <dd>Browser only</dd>
-              </div>
-              <div>
-                <dt>Deploy folder</dt>
-                <dd><code>public</code></dd>
-              </div>
-              <div>
-                <dt>Styles</dt>
-                <dd><code>global.css</code></dd>
-              </div>
-              <div>
-                <dt>Script</dt>
-                <dd><code>app.js</code></dd>
-              </div>
-            </dl>
-          </aside>
-        </section>
-
-        <section class="panel settings-panel" id="settings" aria-labelledby="settings-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Settings</p>
-              <h2 id="settings-title">App preferences</h2>
-            </div>
-            <span class="save-state" id="save-state" role="status">Saved locally</span>
-          </div>
-
-          <div class="settings-grid">
-            <label class="field">
-              <span>App name</span>
-              <input id="app-name" type="text" maxlength="32" value="Cordia">
+        <aside class="side-panel" aria-label="Food tools">
+          <section class="tool-card" aria-labelledby="search-title">
+            <p class="eyebrow">Food database</p>
+            <h2 id="search-title">Search and add</h2>
+            <label class="field" for="food-search">
+              <span>Food item</span>
+              <input
+                id="food-search"
+                type="search"
+                autocomplete="off"
+                placeholder="Chicken Shawarma Wrap"
+              >
             </label>
+            <div class="search-results" id="search-results" aria-live="polite"></div>
+          </section>
 
-            <label class="field">
-              <span>Theme</span>
-              <select id="theme-select">
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+          <section class="tool-card" aria-labelledby="photo-title">
+            <p class="eyebrow">Photo import</p>
+            <h2 id="photo-title">Estimate from image</h2>
+            <div class="drop-zone" id="drop-zone" tabindex="0" role="button">
+              <input id="photo-input" type="file" accept="image/*">
+              <span>Drop food photo here or browse</span>
+              <small>Creates a searchable item after analysis.</small>
+            </div>
+            <div class="photo-result" id="photo-result" hidden></div>
+          </section>
+
+          <section class="tool-card" aria-labelledby="goals-title">
+            <p class="eyebrow">Think forward</p>
+            <h2 id="goals-title">Seasonal goal</h2>
+            <label class="field" for="goal-select">
+              <span>Planning mode</span>
+              <select id="goal-select">
+                <option value="cutting">Cutting</option>
+                <option value="bulking">Bulking</option>
+                <option value="dirtyBulking">Dirty bulking</option>
+                <option value="reverseDieting">Reverse dieting</option>
+                <option value="intermittentFasting">Intermittent fasting</option>
               </select>
             </label>
-          </div>
-        </section>
-      </main>
-
-      <footer class="site-footer">
-        <span>Created by <a href="https://cordia.molten.bot">cordia.molten.bot</a>.</span>
-        <a href="https://molten.bot">molten.bot</a>
-      </footer>
-    </div>
+            <p class="goal-note" id="goal-note"></p>
+          </section>
+        </aside>
+      </section>
+    </main>
   </body>
 </html>
