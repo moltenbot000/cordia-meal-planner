@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "generatedBy": "cordia",
+  "updatedAt": "2026-05-30T21:34:35.581Z",
+  "project": {
+    "id": "meal-planner",
+    "handle": "meal-planner",
+    "title": "Meal Planner",
+    "summary": "MyFitnessPal clone that allows a user to search for food items, select them, automatically pull the calories and macros (carbs/protein/fat) and logs it. Users should be able to navigate by date and see a breakdown of their food diary and aggregate cals/macros",
+    "url": "https://cordia.molten.bot/projects/meal-planner"
+  },
+  "repo": {
+    "owner": "moltenbot000",
+    "name": "cordia-meal-planner",
+    "fullName": "moltenbot000/cordia-meal-planner"
+  }
+}
