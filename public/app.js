@@ -1,6 +1,6 @@
 const storageKey = "meal-planner-state-v1";
 
-const dailyGoal = {
+const defaultDailyGoal = {
   calories: 2500,
   carbohydrates: 125,
   protein: 250,
@@ -9,6 +9,12 @@ const dailyGoal = {
 };
 
 const meals = ["I", "II", "III", "IV"];
+const recommendedFoodByMeal = {
+  I: "greek-yogurt-berries",
+  II: "chicken-shawarma-wrap",
+  III: "salmon-rice-bowl",
+  IV: "cottage-cheese-almonds",
+};
 
 const defaultFoods = [
   {
@@ -53,6 +59,20 @@ const defaultFoods = [
       sugar: 8,
     },
   },
+  {
+    id: "cottage-cheese-almonds",
+    name: "Cottage Cheese with Almonds",
+    servingSize: "1 bowl",
+    source: "Starter item",
+    nutrition: {
+      calories: 340,
+      protein: 32,
+      carbohydrates: 18,
+      fat: 16,
+      fiber: 4,
+      sugar: 10,
+    },
+  },
 ];
 
 const goalNotes = {
@@ -64,8 +84,10 @@ const goalNotes = {
 };
 
 const elements = {
+  calendarOpen: document.querySelector("#calendar-open"),
   clearDay: document.querySelector("#clear-day"),
   currentDate: document.querySelector("#current-date"),
+  dailyBudget: document.querySelector("#daily-budget"),
   datePicker: document.querySelector("#date-picker"),
   dropZone: document.querySelector("#drop-zone"),
   foodSearch: document.querySelector("#food-search"),
@@ -84,6 +106,7 @@ const elements = {
     fat: document.querySelector("#total-fat"),
     fiber: document.querySelector("#total-fiber"),
   },
+  goalCalories: document.querySelector("#goal-calories"),
   remaining: {
     calories: document.querySelector("#remaining-calories"),
     carbohydrates: document.querySelector("#remaining-carbs"),
@@ -91,24 +114,32 @@ const elements = {
     fat: document.querySelector("#remaining-fat"),
     fiber: document.querySelector("#remaining-fiber"),
   },
+  entryDialog: document.querySelector("#entry-dialog"),
+  entryForm: document.querySelector("#entry-form"),
+  entryCancel: document.querySelector("#entry-cancel"),
 };
 
 let state = loadState();
+let editingEntry = null;
 
 function loadState() {
   const today = formatDateKey(new Date());
+  const dateFromUrl = getUrlDate();
   try {
     const storedState = JSON.parse(localStorage.getItem(storageKey));
     return normalizeState({
       selectedDate: today,
+      dailyCaloricBudget: defaultDailyGoal.calories,
       goal: "cutting",
       foods: defaultFoods,
       diary: {},
       ...storedState,
+      selectedDate: dateFromUrl || storedState?.selectedDate || today,
     });
   } catch {
     return normalizeState({
-      selectedDate: today,
+      selectedDate: dateFromUrl || today,
+      dailyCaloricBudget: defaultDailyGoal.calories,
       goal: "cutting",
       foods: defaultFoods,
       diary: {},
@@ -126,6 +157,14 @@ function normalizeState(nextState) {
 
   return {
     ...nextState,
+    selectedDate: isValidDateKey(nextState.selectedDate)
+      ? nextState.selectedDate
+      : formatDateKey(new Date()),
+    dailyCaloricBudget:
+      Number.isFinite(Number(nextState.dailyCaloricBudget)) &&
+      Number(nextState.dailyCaloricBudget) >= 0
+        ? Number(nextState.dailyCaloricBudget)
+        : defaultDailyGoal.calories,
     foods: mergedFoods,
     diary: nextState.diary || {},
   };
@@ -147,6 +186,23 @@ function parseDateKey(dateKey) {
   return new Date(year, month - 1, day);
 }
 
+function isValidDateKey(dateKey) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey || "")) return false;
+  return formatDateKey(parseDateKey(dateKey)) === dateKey;
+}
+
+function getUrlDate() {
+  const date = new URLSearchParams(window.location.search).get("date");
+  return isValidDateKey(date) ? date : null;
+}
+
+function updateDateUrl(dateKey, mode = "push") {
+  const url = new URL(window.location.href);
+  url.searchParams.set("date", dateKey);
+  const method = mode === "replace" ? "replaceState" : "pushState";
+  window.history[method]({}, "", url);
+}
+
 function formatDisplayDate(dateKey) {
   return parseDateKey(dateKey).toLocaleDateString("en-US", {
     weekday: "long",
@@ -159,8 +215,14 @@ function formatDisplayDate(dateKey) {
 function shiftDate(days) {
   const nextDate = parseDateKey(state.selectedDate);
   nextDate.setDate(nextDate.getDate() + days);
-  state = { ...state, selectedDate: formatDateKey(nextDate) };
+  setSelectedDate(formatDateKey(nextDate));
+}
+
+function setSelectedDate(dateKey, mode = "push") {
+  if (!isValidDateKey(dateKey)) return;
+  state = { ...state, selectedDate: dateKey };
   saveState();
+  updateDateUrl(dateKey, mode);
   render();
 }
 
@@ -202,10 +264,21 @@ function addFoodToMeal(foodId, meal) {
   setMealItems(meal, [...getMealItems(meal), entry]);
 }
 
+function addRecommendedFoodToMeal(meal) {
+  addFoodToMeal(recommendedFoodByMeal[meal], meal);
+}
+
 function removeMealEntry(meal, entryId) {
   setMealItems(
     meal,
     getMealItems(meal).filter((item) => item.id !== entryId),
+  );
+}
+
+function updateMealEntry(meal, updatedEntry) {
+  setMealItems(
+    meal,
+    getMealItems(meal).map((item) => (item.id === updatedEntry.id ? updatedEntry : item)),
   );
 }
 
@@ -243,6 +316,7 @@ function formatNumber(value) {
 
 function render() {
   elements.currentDate.textContent = formatDisplayDate(state.selectedDate);
+  elements.dailyBudget.value = state.dailyCaloricBudget;
   elements.datePicker.value = state.selectedDate;
   elements.goalSelect.value = state.goal;
   elements.goalNote.textContent = goalNotes[state.goal];
@@ -292,8 +366,8 @@ function renderMeals() {
 
     const quickTools = document.createElement("button");
     quickTools.type = "button";
-    quickTools.textContent = "Quick Tools";
-    quickTools.addEventListener("click", () => addFoodToMeal("chicken-shawarma-wrap", meal));
+    quickTools.textContent = "Recommended";
+    quickTools.addEventListener("click", () => addRecommendedFoodToMeal(meal));
 
     actions.append(addLink, quickTools);
     mealSection.append(title, entries, actions);
@@ -328,24 +402,55 @@ function createMealEntry(entry, meal) {
     return cell;
   });
 
+  const actionGroup = document.createElement("div");
+  actionGroup.className = "entry-actions";
+
+  const editButton = document.createElement("button");
+  editButton.className = "entry-action";
+  editButton.type = "button";
+  editButton.textContent = "Edit";
+  editButton.addEventListener("click", () => openEntryEditor(meal, entry));
+
   const removeButton = document.createElement("button");
-  removeButton.className = "remove-entry";
+  removeButton.className = "entry-action";
   removeButton.type = "button";
   removeButton.textContent = "Remove";
   removeButton.addEventListener("click", () => removeMealEntry(meal, entry.id));
 
-  row.append(details, ...values, removeButton);
+  actionGroup.append(editButton, removeButton);
+  row.append(details, ...values, actionGroup);
   return row;
 }
 
 function renderTotals() {
   const totals = getNutritionTotals();
+  const dailyGoal = { ...defaultDailyGoal, calories: state.dailyCaloricBudget };
+  elements.goalCalories.textContent = formatNumber(dailyGoal.calories);
   Object.entries(elements.totals).forEach(([key, element]) => {
     element.textContent = formatNumber(totals[key]);
   });
   Object.entries(elements.remaining).forEach(([key, element]) => {
     element.textContent = formatNumber(dailyGoal[key] - totals[key]);
   });
+}
+
+function openEntryEditor(meal, entry) {
+  editingEntry = { meal, entryId: entry.id };
+  elements.entryForm.elements.name.value = entry.name;
+  elements.entryForm.elements.servingSize.value = entry.servingSize;
+  elements.entryForm.elements.calories.value = entry.nutrition.calories;
+  elements.entryForm.elements.carbohydrates.value = entry.nutrition.carbohydrates;
+  elements.entryForm.elements.protein.value = entry.nutrition.protein;
+  elements.entryForm.elements.fat.value = entry.nutrition.fat;
+  elements.entryForm.elements.fiber.value = entry.nutrition.fiber;
+  elements.entryForm.elements.sugar.value = entry.nutrition.sugar || 0;
+  elements.entryDialog.showModal();
+  elements.entryForm.elements.name.focus();
+}
+
+function closeEntryEditor() {
+  editingEntry = null;
+  elements.entryDialog.close();
 }
 
 function renderSearchResults() {
@@ -526,8 +631,24 @@ function handlePhoto(file) {
 elements.previousDay.addEventListener("click", () => shiftDate(-1));
 elements.nextDay.addEventListener("click", () => shiftDate(1));
 
+elements.calendarOpen.addEventListener("click", () => {
+  if (typeof elements.datePicker.showPicker === "function") {
+    elements.datePicker.showPicker();
+  } else {
+    elements.datePicker.focus();
+    elements.datePicker.click();
+  }
+});
+
 elements.datePicker.addEventListener("change", () => {
-  state = { ...state, selectedDate: elements.datePicker.value || state.selectedDate };
+  setSelectedDate(elements.datePicker.value || state.selectedDate);
+});
+
+elements.dailyBudget.addEventListener("change", () => {
+  state = {
+    ...state,
+    dailyCaloricBudget: Math.max(0, Number(elements.dailyBudget.value) || 0),
+  };
   saveState();
   render();
 });
@@ -545,6 +666,35 @@ elements.goalSelect.addEventListener("change", () => {
   state = { ...state, goal: elements.goalSelect.value };
   saveState();
   render();
+});
+
+elements.entryCancel.addEventListener("click", closeEntryEditor);
+
+elements.entryForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!editingEntry) return;
+  const current = getMealItems(editingEntry.meal).find((item) => item.id === editingEntry.entryId);
+  if (!current) {
+    closeEntryEditor();
+    return;
+  }
+
+  const form = elements.entryForm.elements;
+  updateMealEntry(editingEntry.meal, {
+    ...current,
+    name: form.name.value.trim(),
+    servingSize: form.servingSize.value.trim(),
+    nutrition: {
+      ...current.nutrition,
+      calories: Number(form.calories.value) || 0,
+      carbohydrates: Number(form.carbohydrates.value) || 0,
+      protein: Number(form.protein.value) || 0,
+      fat: Number(form.fat.value) || 0,
+      fiber: Number(form.fiber.value) || 0,
+      sugar: Number(form.sugar.value) || 0,
+    },
+  });
+  closeEntryEditor();
 });
 
 elements.dropZone.addEventListener("click", () => elements.photoInput.click());
@@ -574,4 +724,13 @@ elements.dropZone.addEventListener("drop", (event) => {
   handlePhoto(event.dataTransfer.files[0]);
 });
 
+window.addEventListener("popstate", () => {
+  const dateFromUrl = getUrlDate();
+  if (!dateFromUrl || dateFromUrl === state.selectedDate) return;
+  state = { ...state, selectedDate: dateFromUrl };
+  saveState();
+  render();
+});
+
+updateDateUrl(state.selectedDate, "replace");
 render();
