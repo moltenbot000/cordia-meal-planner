@@ -32,9 +32,9 @@
           <button class="date-arrow" id="next-day" type="button" aria-label="Next day">
             <span aria-hidden="true">&#9654;</span>
           </button>
-          <label class="calendar-button" for="date-picker" aria-label="Select date">
+          <button class="calendar-button" id="calendar-open" type="button" aria-label="Select date">
             <span aria-hidden="true">&#128197;</span>
-          </label>
+          </button>
           <input id="date-picker" type="date" aria-label="Calendar Date Selector">
         </div>
       </header>
@@ -46,6 +46,10 @@
               <p class="eyebrow">Daily log</p>
               <h2 id="diary-title">Meals I-IV</h2>
             </div>
+            <label class="budget-field" for="daily-budget">
+              <span>Daily Caloric Budget</span>
+              <input id="daily-budget" type="number" min="0" step="50" inputmode="numeric">
+            </label>
             <button class="button secondary" id="clear-day" type="button">Clear day</button>
           </div>
 
@@ -71,7 +75,7 @@
             </div>
             <div class="total-row">
               <strong>Your Daily Goal</strong>
-              <span>2,500</span>
+              <span id="goal-calories">2,500</span>
               <span>125</span>
               <span>250</span>
               <span>111</span>
@@ -132,6 +136,56 @@
           </section>
         </aside>
       </section>
+
+      <dialog class="edit-dialog" id="entry-dialog">
+        <form method="dialog" class="edit-form" id="entry-form">
+          <div>
+            <p class="eyebrow">Food diary item</p>
+            <h2>Edit food</h2>
+          </div>
+
+          <label class="field" for="entry-name">
+            <span>Name</span>
+            <input id="entry-name" name="name" required>
+          </label>
+          <label class="field" for="entry-serving">
+            <span>Serving</span>
+            <input id="entry-serving" name="servingSize" required>
+          </label>
+
+          <div class="macro-grid">
+            <label class="field" for="entry-calories">
+              <span>Calories</span>
+              <input id="entry-calories" name="calories" type="number" min="0" step="1" required>
+            </label>
+            <label class="field" for="entry-carbs">
+              <span>Carbs</span>
+              <input id="entry-carbs" name="carbohydrates" type="number" min="0" step="1" required>
+            </label>
+            <label class="field" for="entry-protein">
+              <span>Protein</span>
+              <input id="entry-protein" name="protein" type="number" min="0" step="1" required>
+            </label>
+            <label class="field" for="entry-fat">
+              <span>Fat</span>
+              <input id="entry-fat" name="fat" type="number" min="0" step="1" required>
+            </label>
+            <label class="field" for="entry-fiber">
+              <span>Fiber</span>
+              <input id="entry-fiber" name="fiber" type="number" min="0" step="1" required>
+            </label>
+            <label class="field" for="entry-sugar">
+              <span>Sugar</span>
+              <input id="entry-sugar" name="sugar" type="number" min="0" step="1" required>
+            </label>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button secondary" id="entry-cancel" type="button">Cancel</button>
+            <button class="button" type="submit">Save food</button>
+          </div>
+        </form>
+      </dialog>
     </main>
   </body>
 </html>
