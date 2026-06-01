@@ -39,6 +39,22 @@
         </div>
       </header>
 
+      <nav class="tab-nav" aria-label="Meal planner sections">
+        <button class="tab-button" id="diary-tab" type="button" aria-controls="diary-panel" aria-selected="true">
+          <span aria-hidden="true">&#128214;</span>
+          <span>Diary</span>
+        </button>
+        <button class="tab-button" id="goals-tab" type="button" aria-controls="goals-panel" aria-selected="false">
+          <span aria-hidden="true">&#127919;</span>
+          <span>Goals</span>
+        </button>
+        <button class="tab-button" id="food-tab" type="button" aria-controls="food-panel" aria-selected="false">
+          <span aria-hidden="true">&#127860;</span>
+          <span>Food</span>
+        </button>
+      </nav>
+
+      <section class="tab-panel" id="diary-panel" aria-labelledby="diary-tab">
       <section class="planner-layout" aria-label="Food diary workspace">
         <section class="diary-card" aria-labelledby="diary-title">
           <div class="diary-toolbar">
@@ -76,10 +92,10 @@
             <div class="total-row">
               <strong>Your Daily Goal</strong>
               <span id="goal-calories">2,500</span>
-              <span>125</span>
-              <span>250</span>
-              <span>111</span>
-              <span>38</span>
+              <span id="goal-carbs">125</span>
+              <span id="goal-protein">250</span>
+              <span id="goal-fat">111</span>
+              <span id="goal-fiber">38</span>
             </div>
             <div class="total-row remaining">
               <strong>Remaining</strong>
@@ -126,15 +142,131 @@
               <span>Planning mode</span>
               <select id="goal-select">
                 <option value="cutting">Cutting</option>
-                <option value="bulking">Bulking</option>
                 <option value="dirtyBulking">Dirty bulking</option>
-                <option value="reverseDieting">Reverse dieting</option>
                 <option value="intermittentFasting">Intermittent fasting</option>
+                <option value="reverseDieting">Reverse dieting</option>
               </select>
             </label>
             <p class="goal-note" id="goal-note"></p>
           </section>
         </aside>
+      </section>
+      </section>
+
+      <section class="tab-panel" id="goals-panel" aria-labelledby="goals-tab" hidden>
+        <section class="management-card" aria-labelledby="goals-page-title">
+          <div class="section-heading">
+            <p class="eyebrow">Current targets</p>
+            <h2 id="goals-page-title">Goal macro settings</h2>
+          </div>
+
+          <div class="goal-grid" id="goal-grid"></div>
+
+          <form class="edit-form goal-form" id="goal-form">
+            <div>
+              <p class="eyebrow">Edit goal</p>
+              <h3 id="goal-form-title">Cutting</h3>
+            </div>
+
+            <label class="field" for="goal-editor-select">
+              <span>Goal</span>
+              <select id="goal-editor-select" name="goal"></select>
+            </label>
+
+            <div class="macro-grid">
+              <label class="field" for="goal-editor-calories">
+                <span>Calories</span>
+                <input id="goal-editor-calories" name="calories" type="number" min="0" step="1" required>
+              </label>
+              <label class="field" for="goal-editor-carbs">
+                <span>Carbs</span>
+                <input id="goal-editor-carbs" name="carbohydrates" type="number" min="0" step="1" required>
+              </label>
+              <label class="field" for="goal-editor-protein">
+                <span>Protein</span>
+                <input id="goal-editor-protein" name="protein" type="number" min="0" step="1" required>
+              </label>
+              <label class="field" for="goal-editor-fat">
+                <span>Fat</span>
+                <input id="goal-editor-fat" name="fat" type="number" min="0" step="1" required>
+              </label>
+              <label class="field" for="goal-editor-fiber">
+                <span>Fiber</span>
+                <input id="goal-editor-fiber" name="fiber" type="number" min="0" step="1" required>
+              </label>
+            </div>
+
+            <div class="dialog-actions">
+              <button class="button secondary" id="reset-goal" type="button">Reset goal</button>
+              <button class="button" type="submit">Save goal</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="food-panel" aria-labelledby="food-tab" hidden>
+        <section class="management-card" aria-labelledby="food-page-title">
+          <div class="section-heading">
+            <p class="eyebrow">Food database</p>
+            <h2 id="food-page-title">Search, add, edit, remove food</h2>
+          </div>
+
+          <div class="food-management-layout">
+            <section aria-label="Food database list">
+              <label class="field" for="food-manager-search">
+                <span>Search foods</span>
+                <input id="food-manager-search" type="search" autocomplete="off" placeholder="Search food database">
+              </label>
+              <div class="managed-food-list" id="managed-food-list" aria-live="polite"></div>
+            </section>
+
+            <form class="edit-form food-form" id="food-form">
+              <div>
+                <p class="eyebrow">Food item</p>
+                <h3 id="food-form-title">Add food</h3>
+              </div>
+              <input id="food-id" name="id" type="hidden">
+              <label class="field" for="food-name">
+                <span>Name</span>
+                <input id="food-name" name="name" required>
+              </label>
+              <label class="field" for="food-serving">
+                <span>Serving</span>
+                <input id="food-serving" name="servingSize" required>
+              </label>
+              <div class="macro-grid">
+                <label class="field" for="food-calories">
+                  <span>Calories</span>
+                  <input id="food-calories" name="calories" type="number" min="0" step="1" required>
+                </label>
+                <label class="field" for="food-carbs">
+                  <span>Carbs</span>
+                  <input id="food-carbs" name="carbohydrates" type="number" min="0" step="1" required>
+                </label>
+                <label class="field" for="food-protein">
+                  <span>Protein</span>
+                  <input id="food-protein" name="protein" type="number" min="0" step="1" required>
+                </label>
+                <label class="field" for="food-fat">
+                  <span>Fat</span>
+                  <input id="food-fat" name="fat" type="number" min="0" step="1" required>
+                </label>
+                <label class="field" for="food-fiber">
+                  <span>Fiber</span>
+                  <input id="food-fiber" name="fiber" type="number" min="0" step="1" required>
+                </label>
+                <label class="field" for="food-sugar">
+                  <span>Sugar</span>
+                  <input id="food-sugar" name="sugar" type="number" min="0" step="1" required>
+                </label>
+              </div>
+              <div class="dialog-actions">
+                <button class="button secondary" id="new-food" type="button">New food</button>
+                <button class="button" type="submit">Save food</button>
+              </div>
+            </form>
+          </div>
+        </section>
       </section>
 
       <dialog class="edit-dialog" id="entry-dialog">
