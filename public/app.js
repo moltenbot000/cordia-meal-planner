@@ -8,6 +8,30 @@ const defaultDailyGoal = {
   fiber: 38,
 };
 
+const defaultGoalSettings = {
+  cutting: {
+    label: "Cutting",
+    note: "Prioritize high protein, fiber, and a controlled calorie deficit.",
+    targets: { calories: 2100, carbohydrates: 160, protein: 190, fat: 70, fiber: 38 },
+  },
+  dirtyBulking: {
+    label: "Dirty Bulking",
+    note: "Higher-calorie planning with fewer food restrictions.",
+    targets: { calories: 3500, carbohydrates: 430, protein: 210, fat: 115, fiber: 35 },
+  },
+  intermittentFasting: {
+    label: "Intermittent Fasting",
+    note: "Cluster meals inside a shorter eating window with bigger servings.",
+    targets: { calories: 2400, carbohydrates: 220, protein: 185, fat: 85, fiber: 34 },
+  },
+  reverseDieting: {
+    label: "Reverse Dieting",
+    note: "Increase calories gradually while keeping protein stable.",
+    targets: { calories: 2600, carbohydrates: 280, protein: 180, fat: 80, fiber: 36 },
+  },
+};
+
+const goalOrder = ["cutting", "dirtyBulking", "intermittentFasting", "reverseDieting"];
 const meals = ["I", "II", "III", "IV"];
 const recommendedFoodByMeal = {
   I: "greek-yogurt-berries",
@@ -75,14 +99,6 @@ const defaultFoods = [
   },
 ];
 
-const goalNotes = {
-  cutting: "Prioritize high protein, fiber, and a controlled calorie deficit.",
-  bulking: "Plan calorie surplus meals with steady protein and carb support.",
-  dirtyBulking: "Higher-calorie planning with fewer food restrictions.",
-  reverseDieting: "Increase calories gradually while keeping protein stable.",
-  intermittentFasting: "Cluster meals inside a shorter eating window with bigger servings.",
-};
-
 const elements = {
   calendarOpen: document.querySelector("#calendar-open"),
   clearDay: document.querySelector("#clear-day"),
@@ -92,6 +108,16 @@ const elements = {
   dropZone: document.querySelector("#drop-zone"),
   favoriteResults: document.querySelector("#favorite-results"),
   foodSearch: document.querySelector("#food-search"),
+  foodManagerSearch: document.querySelector("#food-manager-search"),
+  foodForm: document.querySelector("#food-form"),
+  foodFormTitle: document.querySelector("#food-form-title"),
+  managedFoodList: document.querySelector("#managed-food-list"),
+  newFood: document.querySelector("#new-food"),
+  resetGoal: document.querySelector("#reset-goal"),
+  goalEditorSelect: document.querySelector("#goal-editor-select"),
+  goalForm: document.querySelector("#goal-form"),
+  goalFormTitle: document.querySelector("#goal-form-title"),
+  goalGrid: document.querySelector("#goal-grid"),
   goalNote: document.querySelector("#goal-note"),
   goalSelect: document.querySelector("#goal-select"),
   mealList: document.querySelector("#meal-list"),
@@ -107,7 +133,13 @@ const elements = {
     fat: document.querySelector("#total-fat"),
     fiber: document.querySelector("#total-fiber"),
   },
-  goalCalories: document.querySelector("#goal-calories"),
+  goalTargets: {
+    calories: document.querySelector("#goal-calories"),
+    carbohydrates: document.querySelector("#goal-carbs"),
+    protein: document.querySelector("#goal-protein"),
+    fat: document.querySelector("#goal-fat"),
+    fiber: document.querySelector("#goal-fiber"),
+  },
   remaining: {
     calories: document.querySelector("#remaining-calories"),
     carbohydrates: document.querySelector("#remaining-carbs"),
@@ -118,6 +150,8 @@ const elements = {
   entryDialog: document.querySelector("#entry-dialog"),
   entryForm: document.querySelector("#entry-form"),
   entryCancel: document.querySelector("#entry-cancel"),
+  tabButtons: Array.from(document.querySelectorAll(".tab-button")),
+  tabPanels: Array.from(document.querySelectorAll(".tab-panel")),
 };
 
 let state = loadState();
@@ -130,9 +164,11 @@ function loadState() {
     const storedState = JSON.parse(localStorage.getItem(storageKey));
     return normalizeState({
       selectedDate: today,
-      dailyCaloricBudget: defaultDailyGoal.calories,
       goal: "cutting",
+      activeTab: "diary",
+      goalTargets: getDefaultTargets(),
       foods: defaultFoods,
+      deletedFoodIds: [],
       favoriteFoodIds: [],
       diary: {},
       ...storedState,
@@ -141,22 +177,47 @@ function loadState() {
   } catch {
     return normalizeState({
       selectedDate: dateFromUrl || today,
-      dailyCaloricBudget: defaultDailyGoal.calories,
       goal: "cutting",
+      activeTab: "diary",
+      goalTargets: getDefaultTargets(),
       foods: defaultFoods,
+      deletedFoodIds: [],
       favoriteFoodIds: [],
       diary: {},
     });
   }
 }
 
+function getDefaultTargets() {
+  return Object.fromEntries(
+    goalOrder.map((goal) => [goal, { ...defaultGoalSettings[goal].targets }]),
+  );
+}
+
+function normalizeGoalKey(goal) {
+  return goalOrder.includes(goal) ? goal : goal === "bulking" ? "dirtyBulking" : "cutting";
+}
+
 function normalizeState(nextState) {
-  const mergedFoods = [...defaultFoods];
+  const { dailyCaloricBudget, ...stateWithoutLegacyBudget } = nextState;
+  const deletedFoodIds = Array.isArray(nextState.deletedFoodIds) ? nextState.deletedFoodIds : [];
+  const mergedFoods = defaultFoods.filter((food) => !deletedFoodIds.includes(food.id));
   (nextState.foods || []).forEach((food) => {
-    if (!mergedFoods.some((defaultFood) => defaultFood.id === food.id)) {
+    if (
+      !deletedFoodIds.includes(food.id) &&
+      !mergedFoods.some((defaultFood) => defaultFood.id === food.id)
+    ) {
       mergedFoods.push(food);
     }
   });
+  const goalTargets = getDefaultTargets();
+  Object.entries(nextState.goalTargets || {}).forEach(([goal, targets]) => {
+    const normalizedGoal = normalizeGoalKey(goal);
+    goalTargets[normalizedGoal] = normalizeTargets(targets, goalTargets[normalizedGoal]);
+  });
+  if (Number.isFinite(Number(dailyCaloricBudget))) {
+    goalTargets.cutting.calories = Math.max(0, Number(dailyCaloricBudget));
+  }
 
   const foodIds = new Set(mergedFoods.map((food) => food.id));
   const storedFavoriteFoodIds = Array.isArray(nextState.favoriteFoodIds)
@@ -167,19 +228,31 @@ function normalizeState(nextState) {
   );
 
   return {
-    ...nextState,
+    ...stateWithoutLegacyBudget,
     selectedDate: isValidDateKey(nextState.selectedDate)
       ? nextState.selectedDate
       : formatDateKey(new Date()),
-    dailyCaloricBudget:
-      Number.isFinite(Number(nextState.dailyCaloricBudget)) &&
-      Number(nextState.dailyCaloricBudget) >= 0
-        ? Number(nextState.dailyCaloricBudget)
-        : defaultDailyGoal.calories,
+    goal: normalizeGoalKey(nextState.goal),
+    activeTab: ["diary", "goals", "food"].includes(nextState.activeTab)
+      ? nextState.activeTab
+      : "diary",
+    goalTargets,
     foods: mergedFoods,
+    deletedFoodIds,
     favoriteFoodIds,
     diary: nextState.diary || {},
   };
+}
+
+function normalizeTargets(targets, fallback = defaultDailyGoal) {
+  return Object.fromEntries(
+    Object.keys(defaultDailyGoal).map((key) => [
+      key,
+      Number.isFinite(Number(targets?.[key])) && Number(targets[key]) >= 0
+        ? Number(targets[key])
+        : fallback[key],
+    ]),
+  );
 }
 
 function saveState() {
@@ -306,6 +379,30 @@ function addFood(food) {
   render();
 }
 
+function updateFood(food) {
+  state = {
+    ...state,
+    deletedFoodIds: state.deletedFoodIds.filter((id) => id !== food.id),
+    foods: state.foods.some((item) => item.id === food.id)
+      ? state.foods.map((item) => (item.id === food.id ? food : item))
+      : [food, ...state.foods],
+  };
+  saveState();
+  render();
+}
+
+function removeFood(foodId) {
+  state = {
+    ...state,
+    deletedFoodIds: [...new Set([...state.deletedFoodIds, foodId])],
+    favoriteFoodIds: state.favoriteFoodIds.filter((id) => id !== foodId),
+    foods: state.foods.filter((food) => food.id !== foodId),
+  };
+  saveState();
+  resetFoodForm();
+  render();
+}
+
 function isFavoriteFood(foodId) {
   return state.favoriteFoodIds.includes(foodId);
 }
@@ -351,15 +448,29 @@ function formatNumber(value) {
 
 function render() {
   elements.currentDate.textContent = formatDisplayDate(state.selectedDate);
-  elements.dailyBudget.value = state.dailyCaloricBudget;
+  elements.dailyBudget.value = getCurrentGoalTargets().calories;
   elements.datePicker.value = state.selectedDate;
   elements.goalSelect.value = state.goal;
-  elements.goalNote.textContent = goalNotes[state.goal];
+  elements.goalNote.textContent = defaultGoalSettings[state.goal].note;
 
+  renderTabs();
   renderMeals();
   renderTotals();
   renderSearchResults();
   renderFavorites();
+  renderGoalOptions();
+  renderGoals();
+  renderManagedFoods();
+}
+
+function renderTabs() {
+  elements.tabButtons.forEach((button) => {
+    const tab = button.id.replace("-tab", "");
+    button.setAttribute("aria-selected", String(tab === state.activeTab));
+  });
+  elements.tabPanels.forEach((panel) => {
+    panel.hidden = panel.id !== `${state.activeTab}-panel`;
+  });
 }
 
 function renderMeals() {
@@ -466,14 +577,151 @@ function createMealEntry(entry, meal) {
 
 function renderTotals() {
   const totals = getNutritionTotals();
-  const dailyGoal = { ...defaultDailyGoal, calories: state.dailyCaloricBudget };
-  elements.goalCalories.textContent = formatNumber(dailyGoal.calories);
+  const dailyGoal = getCurrentGoalTargets();
+  Object.entries(elements.goalTargets).forEach(([key, element]) => {
+    element.textContent = formatNumber(dailyGoal[key]);
+  });
   Object.entries(elements.totals).forEach(([key, element]) => {
     element.textContent = formatNumber(totals[key]);
   });
   Object.entries(elements.remaining).forEach(([key, element]) => {
     element.textContent = formatNumber(dailyGoal[key] - totals[key]);
   });
+}
+
+function getCurrentGoalTargets() {
+  return state.goalTargets[state.goal] || defaultGoalSettings[state.goal].targets;
+}
+
+function setGoalTargets(goal, targets) {
+  state = {
+    ...state,
+    goalTargets: {
+      ...state.goalTargets,
+      [goal]: normalizeTargets(targets, state.goalTargets[goal]),
+    },
+  };
+  saveState();
+  render();
+}
+
+function renderGoalOptions() {
+  const goalSelects = [elements.goalSelect, elements.goalEditorSelect];
+  goalSelects.forEach((select) => {
+    if (select.options.length === goalOrder.length) return;
+    select.replaceChildren(
+      ...goalOrder.map((goal) => {
+        const option = document.createElement("option");
+        option.value = goal;
+        option.textContent = defaultGoalSettings[goal].label;
+        return option;
+      }),
+    );
+  });
+  elements.goalSelect.value = state.goal;
+  elements.goalEditorSelect.value = state.goal;
+}
+
+function renderGoals() {
+  elements.goalGrid.replaceChildren();
+  goalOrder.forEach((goal) => {
+    const settings = defaultGoalSettings[goal];
+    const targets = state.goalTargets[goal];
+    const card = document.createElement("article");
+    card.className = "goal-card";
+    if (goal === state.goal) card.dataset.active = "true";
+
+    const title = document.createElement("h3");
+    title.textContent = settings.label;
+    const note = document.createElement("p");
+    note.textContent = settings.note;
+    const macros = document.createElement("small");
+    macros.textContent = `${targets.calories} kcal | P ${targets.protein}g C ${targets.carbohydrates}g F ${targets.fat}g`;
+    const button = document.createElement("button");
+    button.className = "button secondary";
+    button.type = "button";
+    button.textContent = goal === state.goal ? "Current" : "Set current";
+    button.addEventListener("click", () => {
+      state = { ...state, goal };
+      saveState();
+      render();
+    });
+
+    card.append(title, note, macros, button);
+    elements.goalGrid.append(card);
+  });
+
+  elements.goalFormTitle.textContent = defaultGoalSettings[state.goal].label;
+  const form = elements.goalForm.elements;
+  const targets = getCurrentGoalTargets();
+  form.goal.value = state.goal;
+  Object.entries(targets).forEach(([key, value]) => {
+    form[key].value = value;
+  });
+}
+
+function renderManagedFoods() {
+  const query = elements.foodManagerSearch.value.trim().toLowerCase();
+  const matches = state.foods.filter((food) => !query || food.name.toLowerCase().includes(query));
+  elements.managedFoodList.replaceChildren();
+
+  if (matches.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No foods found.";
+    elements.managedFoodList.append(empty);
+    return;
+  }
+
+  matches.forEach((food) => {
+    const row = document.createElement("article");
+    row.className = "managed-food";
+
+    const summary = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = food.name;
+    const meta = document.createElement("small");
+    meta.textContent = `${food.servingSize} | ${food.nutrition.calories} kcal | P ${food.nutrition.protein}g C ${food.nutrition.carbohydrates}g F ${food.nutrition.fat}g`;
+    summary.append(name, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "managed-actions";
+    const edit = document.createElement("button");
+    edit.className = "button secondary";
+    edit.type = "button";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => populateFoodForm(food));
+    const remove = document.createElement("button");
+    remove.className = "button secondary";
+    remove.type = "button";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => removeFood(food.id));
+    actions.append(edit, remove);
+
+    row.append(summary, actions);
+    elements.managedFoodList.append(row);
+  });
+}
+
+function populateFoodForm(food) {
+  elements.foodFormTitle.textContent = "Edit food";
+  const form = elements.foodForm.elements;
+  form.id.value = food.id;
+  form.name.value = food.name;
+  form.servingSize.value = food.servingSize;
+  form.calories.value = food.nutrition.calories;
+  form.carbohydrates.value = food.nutrition.carbohydrates;
+  form.protein.value = food.nutrition.protein;
+  form.fat.value = food.nutrition.fat;
+  form.fiber.value = food.nutrition.fiber;
+  form.sugar.value = food.nutrition.sugar || 0;
+  form.name.focus();
+}
+
+function resetFoodForm() {
+  elements.foodFormTitle.textContent = "Add food";
+  elements.foodForm.reset();
+  elements.foodForm.elements.id.value = "";
 }
 
 function openEntryEditor(meal, entry) {
@@ -727,9 +975,16 @@ elements.datePicker.addEventListener("change", () => {
 });
 
 elements.dailyBudget.addEventListener("change", () => {
+  const targets = getCurrentGoalTargets();
   state = {
     ...state,
-    dailyCaloricBudget: Math.max(0, Number(elements.dailyBudget.value) || 0),
+    goalTargets: {
+      ...state.goalTargets,
+      [state.goal]: {
+        ...targets,
+        calories: Math.max(0, Number(elements.dailyBudget.value) || 0),
+      },
+    },
   };
   saveState();
   render();
@@ -743,11 +998,67 @@ elements.clearDay.addEventListener("click", () => {
 });
 
 elements.foodSearch.addEventListener("input", renderSearchResults);
+elements.foodManagerSearch.addEventListener("input", renderManagedFoods);
 
 elements.goalSelect.addEventListener("change", () => {
   state = { ...state, goal: elements.goalSelect.value };
   saveState();
   render();
+});
+
+elements.goalEditorSelect.addEventListener("change", () => {
+  state = { ...state, goal: elements.goalEditorSelect.value };
+  saveState();
+  render();
+});
+
+elements.goalForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = elements.goalForm.elements;
+  setGoalTargets(form.goal.value, {
+    calories: form.calories.value,
+    carbohydrates: form.carbohydrates.value,
+    protein: form.protein.value,
+    fat: form.fat.value,
+    fiber: form.fiber.value,
+  });
+});
+
+elements.resetGoal.addEventListener("click", () => {
+  setGoalTargets(state.goal, defaultGoalSettings[state.goal].targets);
+});
+
+elements.tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state = { ...state, activeTab: button.id.replace("-tab", "") };
+    saveState();
+    render();
+  });
+});
+
+elements.newFood.addEventListener("click", resetFoodForm);
+
+elements.foodForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = elements.foodForm.elements;
+  const name = form.name.value.trim();
+  if (!name) return;
+  const id = form.id.value || slugify(name) || crypto.randomUUID();
+  updateFood({
+    id,
+    name,
+    servingSize: form.servingSize.value.trim(),
+    source: "User food item",
+    nutrition: {
+      calories: Number(form.calories.value) || 0,
+      carbohydrates: Number(form.carbohydrates.value) || 0,
+      protein: Number(form.protein.value) || 0,
+      fat: Number(form.fat.value) || 0,
+      fiber: Number(form.fiber.value) || 0,
+      sugar: Number(form.sugar.value) || 0,
+    },
+  });
+  populateFoodForm(state.foods.find((food) => food.id === id));
 });
 
 elements.entryCancel.addEventListener("click", closeEntryEditor);
