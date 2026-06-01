@@ -285,7 +285,7 @@ h2 {
 
 .food-row {
   display: grid;
-  grid-template-columns: minmax(14rem, 1fr) repeat(5, minmax(4.8rem, 5.5rem)) 4.7rem;
+  grid-template-columns: minmax(14rem, 1fr) repeat(5, minmax(4.8rem, 5.5rem)) 5.8rem;
   gap: 1px;
   align-items: stretch;
   background: var(--line);
@@ -325,7 +325,7 @@ h2 {
 .entry-action {
   border: 0;
   color: var(--link);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
 }
 
 .meal-actions {
@@ -463,9 +463,32 @@ button:focus-visible,
   background: var(--surface-soft);
 }
 
-.result-card div:first-child {
+.result-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.result-header div:first-child {
   display: grid;
   gap: 0.2rem;
+}
+
+.favorite-toggle {
+  min-height: 2rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.favorite-toggle:hover,
+.favorite-toggle:focus-visible {
+  background: var(--primary);
+  color: #ffffff;
 }
 
 .add-buttons {
@@ -590,7 +613,7 @@ button:focus-visible,
   .nutrient-head,
   .food-row,
   .total-row {
-    min-width: 690px;
+    min-width: 720px;
   }
 
   .date-controls strong {

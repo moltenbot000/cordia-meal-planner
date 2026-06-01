@@ -90,6 +90,7 @@ const elements = {
   dailyBudget: document.querySelector("#daily-budget"),
   datePicker: document.querySelector("#date-picker"),
   dropZone: document.querySelector("#drop-zone"),
+  favoriteResults: document.querySelector("#favorite-results"),
   foodSearch: document.querySelector("#food-search"),
   goalNote: document.querySelector("#goal-note"),
   goalSelect: document.querySelector("#goal-select"),
@@ -132,6 +133,7 @@ function loadState() {
       dailyCaloricBudget: defaultDailyGoal.calories,
       goal: "cutting",
       foods: defaultFoods,
+      favoriteFoodIds: [],
       diary: {},
       ...storedState,
       selectedDate: dateFromUrl || storedState?.selectedDate || today,
@@ -142,6 +144,7 @@ function loadState() {
       dailyCaloricBudget: defaultDailyGoal.calories,
       goal: "cutting",
       foods: defaultFoods,
+      favoriteFoodIds: [],
       diary: {},
     });
   }
@@ -155,6 +158,14 @@ function normalizeState(nextState) {
     }
   });
 
+  const foodIds = new Set(mergedFoods.map((food) => food.id));
+  const storedFavoriteFoodIds = Array.isArray(nextState.favoriteFoodIds)
+    ? nextState.favoriteFoodIds
+    : [];
+  const favoriteFoodIds = [...new Set(storedFavoriteFoodIds)].filter((foodId) =>
+    foodIds.has(foodId),
+  );
+
   return {
     ...nextState,
     selectedDate: isValidDateKey(nextState.selectedDate)
@@ -166,6 +177,7 @@ function normalizeState(nextState) {
         ? Number(nextState.dailyCaloricBudget)
         : defaultDailyGoal.calories,
     foods: mergedFoods,
+    favoriteFoodIds,
     diary: nextState.diary || {},
   };
 }
@@ -291,7 +303,30 @@ function addFood(food) {
       : [food, ...state.foods],
   };
   saveState();
-  renderSearchResults();
+  render();
+}
+
+function isFavoriteFood(foodId) {
+  return state.favoriteFoodIds.includes(foodId);
+}
+
+function toggleFavoriteFood(foodId) {
+  if (!state.foods.some((food) => food.id === foodId)) return;
+
+  state = {
+    ...state,
+    favoriteFoodIds: isFavoriteFood(foodId)
+      ? state.favoriteFoodIds.filter((id) => id !== foodId)
+      : [foodId, ...state.favoriteFoodIds],
+  };
+  saveState();
+  render();
+}
+
+function getFavoriteFoods() {
+  return state.favoriteFoodIds
+    .map((foodId) => state.foods.find((food) => food.id === foodId))
+    .filter(Boolean);
 }
 
 function getNutritionTotals() {
@@ -324,6 +359,7 @@ function render() {
   renderMeals();
   renderTotals();
   renderSearchResults();
+  renderFavorites();
 }
 
 function renderMeals() {
@@ -411,13 +447,19 @@ function createMealEntry(entry, meal) {
   editButton.textContent = "Edit";
   editButton.addEventListener("click", () => openEntryEditor(meal, entry));
 
+  const favoriteButton = document.createElement("button");
+  favoriteButton.className = "entry-action";
+  favoriteButton.type = "button";
+  favoriteButton.textContent = isFavoriteFood(entry.foodId) ? "Unfavorite" : "Favorite";
+  favoriteButton.addEventListener("click", () => toggleFavoriteFood(entry.foodId));
+
   const removeButton = document.createElement("button");
   removeButton.className = "entry-action";
   removeButton.type = "button";
   removeButton.textContent = "Remove";
   removeButton.addEventListener("click", () => removeMealEntry(meal, entry.id));
 
-  actionGroup.append(editButton, removeButton);
+  actionGroup.append(editButton, favoriteButton, removeButton);
   row.append(details, ...values, actionGroup);
   return row;
 }
@@ -473,28 +515,68 @@ function renderSearchResults() {
     const item = document.createElement("article");
     item.className = "result-card";
 
-    const summary = document.createElement("div");
-    const name = document.createElement("strong");
-    name.textContent = food.name;
-    const meta = document.createElement("small");
-    meta.textContent = `${food.servingSize} | ${food.nutrition.calories} kcal | P ${food.nutrition.protein}g C ${food.nutrition.carbohydrates}g F ${food.nutrition.fat}g`;
-    summary.append(name, meta);
-
-    const controls = document.createElement("div");
-    controls.className = "add-buttons";
-    meals.forEach((meal) => {
-      const button = document.createElement("button");
-      button.className = meal === elements.foodSearch.dataset.targetMeal ? "selected" : "";
-      button.type = "button";
-      button.textContent = meal;
-      button.ariaLabel = `Add ${food.name} to meal ${meal}`;
-      button.addEventListener("click", () => addFoodToMeal(food.id, meal));
-      controls.append(button);
-    });
-
-    item.append(summary, controls);
+    item.append(createFoodCardHeader(food), createAddButtons(food));
     elements.searchResults.append(item);
   });
+}
+
+function renderFavorites() {
+  const favorites = getFavoriteFoods();
+  elements.favoriteResults.replaceChildren();
+
+  if (favorites.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Favorite meals show here for quick logging.";
+    elements.favoriteResults.append(empty);
+    return;
+  }
+
+  favorites.forEach((food) => {
+    const item = document.createElement("article");
+    item.className = "result-card";
+    item.append(createFoodCardHeader(food), createAddButtons(food));
+    elements.favoriteResults.append(item);
+  });
+}
+
+function createFoodCardHeader(food) {
+  const header = document.createElement("div");
+  header.className = "result-header";
+
+  const summary = document.createElement("div");
+  const name = document.createElement("strong");
+  name.textContent = food.name;
+  const meta = document.createElement("small");
+  meta.textContent = `${food.servingSize} | ${food.nutrition.calories} kcal | P ${food.nutrition.protein}g C ${food.nutrition.carbohydrates}g F ${food.nutrition.fat}g`;
+  summary.append(name, meta);
+
+  const favoriteButton = document.createElement("button");
+  favoriteButton.className = "favorite-toggle";
+  favoriteButton.type = "button";
+  favoriteButton.textContent = isFavoriteFood(food.id) ? "Unfavorite" : "Favorite";
+  favoriteButton.ariaLabel = `${isFavoriteFood(food.id) ? "Remove" : "Add"} ${food.name} ${
+    isFavoriteFood(food.id) ? "from" : "to"
+  } favorites`;
+  favoriteButton.addEventListener("click", () => toggleFavoriteFood(food.id));
+
+  header.append(summary, favoriteButton);
+  return header;
+}
+
+function createAddButtons(food) {
+  const controls = document.createElement("div");
+  controls.className = "add-buttons";
+  meals.forEach((meal) => {
+    const button = document.createElement("button");
+    button.className = meal === elements.foodSearch.dataset.targetMeal ? "selected" : "";
+    button.type = "button";
+    button.textContent = meal;
+    button.ariaLabel = `Add ${food.name} to meal ${meal}`;
+    button.addEventListener("click", () => addFoodToMeal(food.id, meal));
+    controls.append(button);
+  });
+  return controls;
 }
 
 function estimateFoodFromImage(file, imageMetrics = {}) {
